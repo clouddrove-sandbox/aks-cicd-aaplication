@@ -1,0 +1,159 @@
+name: Shared AKS CI/CD Application Workflow
+
+on:
+  workflow_call:
+    inputs:
+      deploy:
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      AZURE_CREDENTIALS:
+        required: true
+      acr_build_args_json:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+env:
+  ACR_LOGIN_SERVER: hugintestacr.azurecr.io
+  ACR_NAME: hugintestacr
+  ACR_REPOSITORY: proj-hugin-backend
+  AKS_RG: hugin-test-rg
+  AKS_CLUSTER_NAME: hugin-test-aks
+  KEY_VAULT_NAME: hugin-test-key-vault
+  HELM_RELEASE_NAME: proj-hugin-api
+  HELM_NAMESPACE: dev
+  HELM_CHART_PATH: ./helmchart
+  HELM_VALUES_FILE: ./helmchart/config/override-values.yaml
+
+# ------------------- CI PIPELINE -------------------
+jobs:
+  build:
+    name: Build & Scan Image
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name $ACR_NAME
+
+      - id: build
+        name: Build & push with ACR
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            set -euo pipefail
+
+            SHORT_SHA="${GITHUB_SHA::7}"
+            CUSTOM_TAG="${SHORT_SHA}"
+
+            echo "Preparing dynamic build args..."
+            mapfile -t BUILD_ARGS < <(
+              jq -r 'to_entries[] | "--build-arg=\(.key)=\(.value)"' \
+              <<< '${{ secrets.acr_build_args_json }}'
+            )
+
+            echo "Building image in ACR..."
+            az acr build \
+              --registry "$ACR_NAME" \
+              --image "$ACR_REPOSITORY:$CUSTOM_TAG" \
+              --image "$ACR_REPOSITORY:latest" \
+              --file "Dockerfile" \
+              "${BUILD_ARGS[@]}" \
+              .
+
+            echo "Build complete — Tag: $CUSTOM_TAG"
+            echo "tag=$CUSTOM_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y
+          sudo apt-get install -y trivy
+
+      - name: Scan Image
+        run: trivy image --exit-code 0 --severity HIGH,CRITICAL $ACR_LOGIN_SERVER/$ACR_REPOSITORY:${{ steps.build.outputs.tag }}
+
+
+  # ------------------- CD PIPELINE -------------------
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ inputs.deploy }}
+    environment:
+      name: dev
+      url: https://portal.azure.com
+
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Fetch secrets from Key Vault
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            DB_URL=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name DB-URL --query value -o tsv)
+            ACCESS_TOKEN_SECRET=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name ACCESS-TOKEN-SECRET --query value -o tsv)
+            REFRESH_TOKEN_SECRET=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name REFRESH-TOKEN-SECRET --query value -o tsv)
+
+            echo "DB_URL=$DB_URL" >> $GITHUB_ENV
+            echo "ACCESS_TOKEN_SECRET=$ACCESS_TOKEN_SECRET" >> $GITHUB_ENV
+            echo "REFRESH_TOKEN_SECRET=$REFRESH_TOKEN_SECRET" >> $GITHUB_ENV
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install kubelogin
+        run: |
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - name: Convert kubeconfig
+        run: kubelogin convert-kubeconfig -l azurecli
+
+      - name: Deploy App via Helm
+        run: |
+          helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
+            -n $HELM_NAMESPACE \
+            -f $HELM_VALUES_FILE \
+            --create-namespace \
+            --set image.repository=$ACR_LOGIN_SERVER/$ACR_REPOSITORY \
+            --set image.tag=$TAG \
+            --set secret.secrets.DB_URL="$DB_URL" \
+            --set secret.secrets.ACCESS_TOKEN_SECRET="$ACCESS_TOKEN_SECRET" \
+            --set secret.secrets.REFRESH_TOKEN_SECRET="$REFRESH_TOKEN_SECRET"
