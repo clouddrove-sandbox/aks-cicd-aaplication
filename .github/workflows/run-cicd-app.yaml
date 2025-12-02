@@ -13,7 +13,6 @@ jobs:
   build:
     uses: ./.github/workflows/template-cicd-app.yaml
     with:
-      mode: build
       acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
       acr_repository:   ${{ vars.ACR_REPOSITORY }}
       aks_rg:           ${{ vars.AKS_RG }}
