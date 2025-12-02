@@ -41,10 +41,9 @@ jobs:
       helm_namespace:   dev
       helm_values_file: values-dev.yaml
 
+      ## 🔥 Inject secrets through helm arguments:
       helm_secret_args: |
-        --set secret.secrets.DB_URL=${{ secrets.DB_DEV_URL }} \
-        --set secret.secrets.JWT=${{ secrets.JWT_SECRET }}
-
-
+        --set secret.secrets.DB_URL=$DB_DEV_URL \
+        --set secret.secrets.JWT=$JWT_SECRET
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
