@@ -1,0 +1,13 @@
+name: Deploy to QA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/template-cd-app.yaml
+    with:
+      tag: ${{ github.sha }}
+      environment: "qa"
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
