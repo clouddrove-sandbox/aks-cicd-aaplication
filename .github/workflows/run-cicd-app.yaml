@@ -1,4 +1,4 @@
-name: Run CI/CD Pipeline
+name: Multi-Environment CI/CD
 
 on:
   workflow_dispatch:
@@ -9,9 +9,37 @@ on:
       - prod
 
 jobs:
-  deploy:
+
+  build:
     uses: ./.github/workflows/template-cicd-app.yaml
     with:
-      environment: ${{ github.ref_name }}   # dev | qa | prod
+      environment: "build"
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+  deploy-dev:
+    needs: build
+    if: github.ref_name == 'dev'
+    uses: ./.github/workflows/template-cicd-app.yaml
+    with:
+      environment: "dev"
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+  deploy-qa:
+    needs: build
+    if: github.ref_name == 'qa'
+    uses: ./.github/workflows/template-cicd-app.yaml
+    with:
+      environment: "qa"
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+  deploy-prod:
+    needs: build
+    if: github.ref_name == 'prod'
+    uses: ./.github/workflows/template-cicd-app.yaml
+    with:
+      environment: "prod"
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
