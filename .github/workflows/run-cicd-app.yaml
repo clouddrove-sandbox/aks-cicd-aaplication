@@ -5,52 +5,29 @@ on:
     branches: [dev, qa, prod]
   workflow_dispatch:
 
+
 jobs:
-
-  ##------------------
-  ## Always Build
-  ##------------------
-  build:
+  deploy:
     uses: ./.github/workflows/template-cicd-app.yaml
+
     with:
       acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
       acr_repository:   ${{ vars.ACR_REPOSITORY }}
       aks_rg:           ${{ vars.AKS_RG }}
       aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
-      helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
-      helm_chart_path:  ${{ vars.HELM_CHART_PATH }}
 
-      # namespace & values dynamic based on branch
-      helm_namespace:   ${{ github.ref_name }}
-      helm_values_file: ${{ format('values-%s.yaml', github.ref_name) }}
+      helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
+      helm_chart_path:   ${{ vars.HELM_CHART_PATH }}
+      helm_namespace:    ${{ github.ref_name }}
+      helm_values_file:  ${{ format('values-%s.yaml', github.ref_name) }}
+
+      # Runtime Helm secret arguments
+      helm_set_args: |
+        --set secret.DB_URL=${{ secrets.DB_URL }} \
+        --set secret.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
+        --set secret.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
 
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
-
-
-  ##------------------
-  ## Deploy DEV
-  ##------------------
-  deploy-dev:
-    needs: build
-    if: github.ref_name == 'dev'     # only auto-deploy dev
-    uses: ./.github/workflows/template-cicd-app.yaml
-    with:
-      mode: deploy
-      acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
-      acr_repository:   ${{ vars.ACR_REPOSITORY }}
-      aks_rg:           ${{ vars.AKS_RG }}
-      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
-      helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
-      helm_chart_path:  ${{ vars.HELM_CHART_PATH }}
-      helm_namespace:   dev
-      helm_values_file: values-dev.yaml
-
-      # 👇 Secret injector (user-friendly format)
-      helm_secret_args: |
-        --set secret.secrets.DB_URL=$DB_DEV_URL \
-        --set secret.secrets.JWT=$JWT_SECRET
-
-    secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+    environment: ${{ github.ref_name }}
