@@ -9,5 +9,8 @@ jobs:
     with:
       tag: ${{ github.sha }}
       environment: "prod"
+      helm_namespace: ${{ vars.HELM_NAMESPACE }}
+      helm_values_file: ${{ vars.HELM_VALUES_FILE }}
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+    

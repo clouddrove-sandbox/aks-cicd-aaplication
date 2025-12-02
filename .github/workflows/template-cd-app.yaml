@@ -11,6 +11,12 @@ on:
         description: "Deployment environment"
         required: true
         type: string
+      helm_namespace:
+        required: true
+        type: string
+      helm_values_file:
+        required: true
+        type: string
     secrets:
       AZURE_CREDENTIALS:
         required: true
