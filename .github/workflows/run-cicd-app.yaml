@@ -18,7 +18,7 @@ jobs:
       helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
       helm_chart_path:   ${{ vars.HELM_CHART_PATH }}
       helm_namespace:    ${{ github.ref_name }}
-      helm_values_file:  ${{ format('values-%s.yaml', github.ref_name) }}
+      helm_values_file:  ${{ github.ref_name }}
 
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
