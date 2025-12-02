@@ -1,0 +1,12 @@
+name: Deploy to DEV
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/template-cd-app.yaml
+    secrets: inherit
+    with:
+      environment: dev
+      tag: ${{ github.sha }}

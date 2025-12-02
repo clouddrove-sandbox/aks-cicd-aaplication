@@ -1,0 +1,12 @@
+name: Deploy to PROD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    environment: prod
+    uses: ./.github/workflows/template-cd-app.yaml
+    secrets: inherit
+    with:
+      tag: ${{ github.sha }}

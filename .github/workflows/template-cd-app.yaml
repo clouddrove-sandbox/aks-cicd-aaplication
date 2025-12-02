@@ -1,0 +1,83 @@
+name: Shared CD - Deploy to AKS
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Image tag to deploy"
+        required: true
+        type: string
+      environment:
+        description: "Deployment environment"
+        type: string
+        required: true
+    secrets:
+      AZURE_CREDENTIALS:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+env:
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  ACR_REPOSITORY: ${{ vars.ACR_REPOSITORY }}
+  AKS_RG: ${{ vars.AKS_RG }}
+  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+  HELM_RELEASE_NAME: ${{ vars.HELM_RELEASE_NAME }}
+  HELM_CHART_PATH: ${{ vars.HELM_CHART_PATH }}
+  HELM_NAMESPACE: ${{ vars.HELM_NAMESPACE }}
+  HELM_VALUES_FILE: ${{ vars.HELM_VALUES_FILE }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Fetch Secrets from Key Vault
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            DB_URL=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name DB-URL --query value -o tsv)
+            ACCESS_TOKEN_SECRET=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name ACCESS-TOKEN-SECRET --query value -o tsv)
+            REFRESH_TOKEN_SECRET=$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name REFRESH-TOKEN-SECRET --query value -o tsv)
+
+            echo "DB_URL=$DB_URL" >> $GITHUB_ENV
+            echo "ACCESS_TOKEN_SECRET=$ACCESS_TOKEN_SECRET" >> $GITHUB_ENV
+            echo "REFRESH_TOKEN_SECRET=$REFRESH_TOKEN_SECRET" >> $GITHUB_ENV
+
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Install kubelogin
+        run: |
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+
+      - uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - run: kubelogin convert-kubeconfig -l azurecli
+
+      - name: Deploy Helm
+        run: |
+          helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART_PATH \
+            -n $HELM_NAMESPACE -f $HELM_VALUES_FILE --create-namespace \
+            --set image.repository=$ACR_LOGIN_SERVER/$ACR_REPOSITORY \
+            --set image.tag=${{ inputs.tag }} \
+            --set secret.secrets.DB_URL="$DB_URL" \
+            --set secret.secrets.ACCESS_TOKEN_SECRET="$ACCESS_TOKEN_SECRET" \
+            --set secret.secrets.REFRESH_TOKEN_SECRET="$REFRESH_TOKEN_SECRET"
