@@ -1,0 +1,17 @@
+name: Run CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      - qa
+      - prod
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/template-cicd-app.yaml
+    with:
+      environment: ${{ github.ref_name }}   # dev | qa | prod
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
