@@ -3,9 +3,6 @@ name: Shared CI-CD Template
 on:
   workflow_call:
     inputs:
-      mode:                     # build | deploy
-        required: true
-        type: string
 
       acr_login_server:
         required: true
@@ -39,10 +36,10 @@ on:
         required: true
         type: string
 
-      # <-- one generic field for ANY secrets
-      helm_secret_args:
+      # Secrets or runtime values will be injected directly by calling workflow
+      helm_set_args:
         required: false
-        type: string   # example: secret.secrets.DB_URL=value1,secret.secrets.JWT=value2
+        type: string   # Example: --set secret.DB_URL=value --set secret.JWT=value
 
     secrets:
       AZURE_CREDENTIALS:
@@ -51,18 +48,14 @@ on:
 
 jobs:
 
-  build:
-    if: ${{ inputs.mode == 'build' }}
+  build_deploy:
     runs-on: ubuntu-latest
-
-    env:
-      ACR: ${{ inputs.acr_login_server }}
-      REPO: ${{ inputs.acr_repository }}
+    environment: ${{ github.ref_name }}   # approval based on environment (dev=auto, qa/prod=require)
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Login to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -70,55 +63,45 @@ jobs:
       - name: Login to ACR
         uses: azure/docker-login@v2
         with:
-          login-server: ${{ env.ACR }}
+          login-server: ${{ inputs.acr_login_server }}
           username:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
           password:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
 
       - id: meta
+        name: Generate Image Tag
         run: echo "tag=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
-      - name: Build & Push
+      - name: Build & Push Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.ACR }}/${{ env.REPO }}:${{ steps.meta.outputs.tag }}
-            ${{ env.ACR }}/${{ env.REPO }}:latest
-
-
-
-  deploy:
-    if: ${{ inputs.mode == 'deploy' }}
-    needs: build
-    runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - run: echo "IMAGE_TAG=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+            ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
+            ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:latest
 
       - uses: azure/setup-kubectl@v4
       - uses: azure/setup-helm@v4
 
-      - name: Connect to AKS
+      - name: Install kubelogin
         run: |
-          az aks get-credentials \
-            --resource-group "${{ inputs.aks_rg }}" \
-            --name "${{ inputs.aks_cluster_name }}" \
-            --overwrite-existing
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt-get install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
 
-      - name: Apply Helm Deployment
+      - uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ inputs.aks_rg }}
+          cluster-name:   ${{ inputs.aks_cluster_name }}
+
+      - run: kubelogin convert-kubeconfig -l azurecli
+
+      - name: Deploy Helm Release
         run: |
           helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
             --namespace "${{ inputs.helm_namespace }}" --create-namespace \
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
-            --set image.tag="$IMAGE_TAG" \
-            ${{ inputs.helm_secret_args }}
+            --set image.tag="${{ steps.meta.outputs.tag }}" \
+            ${{ inputs.helm_set_args || '' }}
