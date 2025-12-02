@@ -36,19 +36,17 @@ on:
         required: true
         type: string
 
-
     secrets:
       AZURE_CREDENTIALS:
         required: true
       helm_set_args:
         required: false
 
-
 jobs:
 
   build_deploy:
     runs-on: ubuntu-latest
-    #environment: ${{ github.ref_name }}   # approval based on environment (dev=auto, qa/prod=require)
+    # environment: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +65,7 @@ jobs:
 
       - id: meta
         name: Generate Image Tag
-        run: echo "tag=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+        run: echo "tag=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Build & Push Image
         uses: docker/build-push-action@v5
@@ -96,10 +94,16 @@ jobs:
       - run: kubelogin convert-kubeconfig -l azurecli
 
       - name: Deploy Helm Release
+        env:
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
         run: |
+          set -e
+
+          echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
+
           helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
             --namespace "${{ inputs.helm_namespace }}" --create-namespace \
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${{ secrets.helm_set_args || '' }}
+            ${HELM_SET_ARGS}
