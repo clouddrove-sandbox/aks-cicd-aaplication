@@ -1,111 +1,124 @@
-name: Shared CI-CD Pipeline
+name: Shared CI-CD Template
 
 on:
   workflow_call:
     inputs:
-      environment:
+      mode:                     # build | deploy
         required: true
         type: string
+
+      acr_login_server:
+        required: true
+        type: string
+
+      acr_repository:
+        required: true
+        type: string
+
+      aks_rg:
+        required: true
+        type: string
+
+      aks_cluster_name:
+        required: true
+        type: string
+
+      helm_release_name:
+        required: true
+        type: string
+
+      helm_chart_path:
+        required: true
+        type: string
+
+      helm_namespace:
+        required: true
+        type: string
+
+      helm_values_file:
+        required: true
+        type: string
+
+      # <-- one generic field for ANY secrets
+      helm_secret_args:
+        required: false
+        type: string   # example: secret.secrets.DB_URL=value1,secret.secrets.JWT=value2
+
     secrets:
       AZURE_CREDENTIALS:
         required: true
 
-permissions:
-  contents: read
-
-env:
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
-  ACR_REPOSITORY: ${{ vars.ACR_REPOSITORY }}
-  ACR_NAME: ${{ vars.ACR_NAME }}
-  AKS_RG: ${{ vars.AKS_RG }}
-  AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
-  KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
-  HELM_RELEASE_NAME: ${{ vars.HELM_RELEASE_NAME }}
-  HELM_CHART_PATH: ${{ vars.HELM_CHART_PATH }}
 
 jobs:
-  ci-cd:
+
+  build:
+    if: ${{ inputs.mode == 'build' }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+
+    env:
+      ACR: ${{ inputs.acr_login_server }}
+      REPO: ${{ inputs.acr_repository }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: azure/login@v2
+      - name: Azure Login
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # ONLY BUILD IF environment == build
       - name: Login to ACR
-        if: ${{ inputs.environment == 'build' }}
         uses: azure/docker-login@v2
         with:
-          login-server: ${{ env.ACR_LOGIN_SERVER }}
-          username: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-          password: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          login-server: ${{ env.ACR }}
+          username:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          password:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
 
       - id: meta
         run: echo "tag=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
-      - name: Build & Push Image
-        if: ${{ inputs.environment == 'build' }}
+      - name: Build & Push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/${{ env.ACR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
-            ${{ env.ACR_LOGIN_SERVER }}/${{ env.ACR_REPOSITORY }}:latest
+            ${{ env.ACR }}/${{ env.REPO }}:${{ steps.meta.outputs.tag }}
+            ${{ env.ACR }}/${{ env.REPO }}:latest
 
-      # Trivy only during CI
-      - name: Scan Image
-        if: ${{ inputs.environment == 'build' }}
-        run: |
-          IMAGE="${ACR_LOGIN_SERVER}/${ACR_REPOSITORY}:${{ steps.meta.outputs.tag }}"
-          trivy image --exit-code 0 --severity HIGH,CRITICAL "$IMAGE"
 
-      # -------- DEPLOY ONLY for dev/qa/prod --------
-      - name: Fetch Secrets from Key Vault
-        if: ${{ inputs.environment != 'build' }}
-        uses: azure/cli@v2
+
+  deploy:
+    if: ${{ inputs.mode == 'deploy' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          inlineScript: |
-            echo "DB_URL=$(az keyvault secret show --name DB-URL --vault-name $KEY_VAULT_NAME --query value -o tsv)" >> $GITHUB_ENV
-            echo "ACCESS_TOKEN_SECRET=$(az keyvault secret show --name ACCESS-TOKEN-SECRET --vault-name $KEY_VAULT_NAME --query value -o tsv)" >> $GITHUB_ENV
-            echo "REFRESH_TOKEN_SECRET=$(az keyvault secret show --name REFRESH-TOKEN-SECRET --vault-name $KEY_VAULT_NAME --query value -o tsv)" >> $GITHUB_ENV
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - run: echo "IMAGE_TAG=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
 
       - uses: azure/setup-kubectl@v4
-        if: ${{ inputs.environment != 'build' }}
-
       - uses: azure/setup-helm@v4
-        if: ${{ inputs.environment != 'build' }}
 
-      - name: Install kubelogin
-        if: ${{ inputs.environment != 'build' }}
+      - name: Connect to AKS
         run: |
-          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
-          sudo apt install unzip -y
-          unzip kubelogin-linux-amd64.zip
-          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+          az aks get-credentials \
+            --resource-group "${{ inputs.aks_rg }}" \
+            --name "${{ inputs.aks_cluster_name }}" \
+            --overwrite-existing
 
-      - uses: azure/aks-set-context@v4
-        if: ${{ inputs.environment != 'build' }}
-        with:
-          resource-group: ${{ env.AKS_RG }}
-          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-
-      - run: kubelogin convert-kubeconfig -l azurecli
-        if: ${{ inputs.environment != 'build' }}
-
-      - name: Deploy Helm Chart
-        if: ${{ inputs.environment != 'build' }}
+      - name: Apply Helm Deployment
         run: |
-          IMAGE_TAG="${{ steps.meta.outputs.tag }}"
-          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-            --namespace "${{ vars.HELM_NAMESPACE }}" --create-namespace \
-            -f "${{ vars.HELM_VALUES_FILE }}" \
-            --set image.repository="$ACR_LOGIN_SERVER/$ACR_REPOSITORY" \
+          helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
+            --namespace "${{ inputs.helm_namespace }}" --create-namespace \
+            -f "${{ inputs.helm_values_file }}" \
+            --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="$IMAGE_TAG" \
-            --set secret.secrets.DB_URL="$DB_URL" \
-            --set secret.secrets.ACCESS_TOKEN_SECRET="$ACCESS_TOKEN_SECRET" \
-            --set secret.secrets.REFRESH_TOKEN_SECRET="$REFRESH_TOKEN_SECRET"
+            ${{ inputs.helm_secret_args }}
