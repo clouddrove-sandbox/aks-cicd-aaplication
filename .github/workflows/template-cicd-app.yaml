@@ -4,7 +4,6 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "Target environment (dev | qa | prod)"
         required: true
         type: string
     secrets:
@@ -27,33 +26,30 @@ env:
 jobs:
   ci-cd:
     runs-on: ubuntu-latest
-
-    environment:
-      name: ${{ inputs.environment }}   # <-- applies approvals rule from GitHub UI
+    environment: ${{ inputs.environment }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # Login to Azure
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # ACR Login
-      - uses: azure/docker-login@v2
+      # ONLY BUILD IF environment == build
+      - name: Login to ACR
+        if: ${{ inputs.environment == 'build' }}
+        uses: azure/docker-login@v2
         with:
           login-server: ${{ env.ACR_LOGIN_SERVER }}
           username: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
           password: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
 
-      # Generate Tag
       - id: meta
-        run: |
-          TAG="${GITHUB_SHA:0:7}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        run: echo "tag=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
-      # Build / Push Docker Image
-      - uses: docker/build-push-action@v5
+      - name: Build & Push Image
+        if: ${{ inputs.environment == 'build' }}
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -61,23 +57,17 @@ jobs:
             ${{ env.ACR_LOGIN_SERVER }}/${{ env.ACR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
             ${{ env.ACR_LOGIN_SERVER }}/${{ env.ACR_REPOSITORY }}:latest
 
-      # Install & Run Trivy Scan
-      - name: Install Trivy
-        run: |
-          sudo apt-get update && sudo apt-get install -y wget gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update && sudo apt-get install -y trivy
-
+      # Trivy only during CI
       - name: Scan Image
+        if: ${{ inputs.environment == 'build' }}
         run: |
           IMAGE="${ACR_LOGIN_SERVER}/${ACR_REPOSITORY}:${{ steps.meta.outputs.tag }}"
-          echo "🔍 Scanning Image: $IMAGE"
           trivy image --exit-code 0 --severity HIGH,CRITICAL "$IMAGE"
 
-
-      # --- Fetch secrets ---
-      - uses: azure/cli@v2
+      # -------- DEPLOY ONLY for dev/qa/prod --------
+      - name: Fetch Secrets from Key Vault
+        if: ${{ inputs.environment != 'build' }}
+        uses: azure/cli@v2
         with:
           inlineScript: |
             echo "DB_URL=$(az keyvault secret show --name DB-URL --vault-name $KEY_VAULT_NAME --query value -o tsv)" >> $GITHUB_ENV
@@ -85,9 +75,13 @@ jobs:
             echo "REFRESH_TOKEN_SECRET=$(az keyvault secret show --name REFRESH-TOKEN-SECRET --vault-name $KEY_VAULT_NAME --query value -o tsv)" >> $GITHUB_ENV
 
       - uses: azure/setup-kubectl@v4
+        if: ${{ inputs.environment != 'build' }}
+
       - uses: azure/setup-helm@v4
+        if: ${{ inputs.environment != 'build' }}
 
       - name: Install kubelogin
+        if: ${{ inputs.environment != 'build' }}
         run: |
           curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
           sudo apt install unzip -y
@@ -95,20 +89,23 @@ jobs:
           sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
 
       - uses: azure/aks-set-context@v4
+        if: ${{ inputs.environment != 'build' }}
         with:
           resource-group: ${{ env.AKS_RG }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
 
       - run: kubelogin convert-kubeconfig -l azurecli
+        if: ${{ inputs.environment != 'build' }}
 
       - name: Deploy Helm Chart
+        if: ${{ inputs.environment != 'build' }}
         run: |
-          echo "🚀 Deploying to: ${{ inputs.environment }}"
+          IMAGE_TAG="${{ steps.meta.outputs.tag }}"
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "${{ vars.HELM_NAMESPACE }}" --create-namespace \
             -f "${{ vars.HELM_VALUES_FILE }}" \
             --set image.repository="$ACR_LOGIN_SERVER/$ACR_REPOSITORY" \
-            --set image.tag="${{ steps.meta.outputs.tag }}" \
+            --set image.tag="$IMAGE_TAG" \
             --set secret.secrets.DB_URL="$DB_URL" \
             --set secret.secrets.ACCESS_TOKEN_SECRET="$ACCESS_TOKEN_SECRET" \
             --set secret.secrets.REFRESH_TOKEN_SECRET="$REFRESH_TOKEN_SECRET"
