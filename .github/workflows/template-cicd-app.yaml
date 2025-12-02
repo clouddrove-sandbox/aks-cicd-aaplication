@@ -37,13 +37,14 @@ on:
         type: string
 
       # Secrets or runtime values will be injected directly by calling workflow
-      helm_set_args:
-        required: true
-        type: string   # Example: --set secret.DB_URL=value --set secret.JWT=value
+  # Example: --set secret.DB_URL=value --set secret.JWT=value
 
     secrets:
       AZURE_CREDENTIALS:
         required: true
+      helm_set_args:
+        required: true
+        type: string 
 
 
 jobs:
@@ -103,4 +104,4 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${{ inputs.helm_set_args || '' }}
+            ${{ secrets.helm_set_args || '' }}
