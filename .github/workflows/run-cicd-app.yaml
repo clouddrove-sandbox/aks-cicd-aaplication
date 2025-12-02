@@ -26,12 +26,13 @@ jobs:
       helm_values_file:  ${{ format('values-%s.yaml', github.ref_name) }}
 
       # Runtime Helm secret arguments
+
+
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       helm_set_args: |
         --set secret.DB_URL=${{ secrets.DB_URL }} \
         --set secret.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
         --set secret.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
-
-    secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
     
     
