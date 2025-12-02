@@ -1,4 +1,4 @@
-name: Shared CI - Build & Push Image
+name: Shared CI - Build & Scan Image
 
 on:
   workflow_call:
@@ -11,7 +11,6 @@ on:
 permissions:
   id-token: write
   contents: read
-  actions: write
 
 env:
   ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
@@ -21,48 +20,51 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     outputs:
       tag: ${{ steps.build.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to Azure
+      - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Login to ACR
+      - name: ACR Login
         run: az acr login --name $ACR_NAME
 
       - id: build
-        name: Build & Push with ACR
+        name: Build & Push Image
         uses: azure/cli@v2
         with:
           inlineScript: |
             SHORT_SHA="${GITHUB_SHA::7}"
-            CUSTOM_TAG="${SHORT_SHA}"
+            CUSTOM_TAG="$SHORT_SHA"
 
-            mapfile -t BUILD_ARGS < <(jq -r 'to_entries[] | "--build-arg=\(.key)=\(.value)"' <<< '${{ secrets.acr_build_args_json }}')
+            mapfile -t BUILD_ARGS < <(
+              jq -r 'to_entries[] | "--build-arg=\(.key)=\(.value)"' <<< '${{ secrets.acr_build_args_json }}'
+            )
 
             az acr build \
               --registry "$ACR_NAME" \
               --image "$ACR_REPOSITORY:$CUSTOM_TAG" \
               --image "$ACR_REPOSITORY:latest" \
-              --file "Dockerfile" \
-              "${BUILD_ARGS[@]}" \
-              .
+              --file "Dockerfile" "${BUILD_ARGS[@]}" .
 
-            echo "tag=$CUSTOM_TAG" >> "$GITHUB_OUTPUT"
+            echo "tag=$CUSTOM_TAG" >> $GITHUB_OUTPUT
 
       - name: Install Trivy
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update -y
-          sudo apt-get install -y trivy
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y && sudo apt-get install -y trivy
 
-      - name: Security Scan
-        run: trivy image --exit-code 0 --severity HIGH,CRITICAL $ACR_LOGIN_SERVER/$ACR_REPOSITORY:${{ steps.build.outputs.tag }}
+      - name: Scan Image
+        run: trivy image --exit-code 0 --severity HIGH,CRITICAL \
+              $ACR_LOGIN_SERVER/$ACR_REPOSITORY:${{ steps.build.outputs.tag }}
