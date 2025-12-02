@@ -9,6 +9,7 @@ on:
 jobs:
   deploy:
     uses: ./.github/workflows/template-cicd-app.yaml
+    environment: dev
 
     with:
       acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
@@ -30,4 +31,4 @@ jobs:
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
-    environment: ${{ github.ref_name }}
+    
