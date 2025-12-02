@@ -1,15 +1,15 @@
 name: Run CI/CD Pipeline
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - dev
-      - qa
-      - prod
+    branches: [dev, qa, prod]
+  workflow_dispatch:
 
 jobs:
 
+  ##------------------
+  ## Always Build
+  ##------------------
   build:
     uses: ./.github/workflows/template-cicd-app.yaml
     with:
@@ -20,15 +20,22 @@ jobs:
       aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
       helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
       helm_chart_path:  ${{ vars.HELM_CHART_PATH }}
-      helm_namespace:   dev
-      helm_values_file: values-dev.yaml
+
+      # namespace & values dynamic based on branch
+      helm_namespace:   ${{ github.ref_name }}
+      helm_values_file: ${{ format('values-%s.yaml', github.ref_name) }}
+
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
 
+
+  ##------------------
+  ## Deploy DEV
+  ##------------------
   deploy-dev:
     needs: build
-    if: github.ref_name == 'dev'
+    if: github.ref_name == 'dev'     # only auto-deploy dev
     uses: ./.github/workflows/template-cicd-app.yaml
     with:
       mode: deploy
@@ -41,9 +48,10 @@ jobs:
       helm_namespace:   dev
       helm_values_file: values-dev.yaml
 
-      ## 🔥 Inject secrets through helm arguments:
+      # 👇 Secret injector (user-friendly format)
       helm_secret_args: |
         --set secret.secrets.DB_URL=$DB_DEV_URL \
         --set secret.secrets.JWT=$JWT_SECRET
+
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
