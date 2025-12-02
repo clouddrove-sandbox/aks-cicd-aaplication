@@ -38,7 +38,7 @@ on:
 
       # Secrets or runtime values will be injected directly by calling workflow
       helm_set_args:
-        required: false
+        required: true
         type: string   # Example: --set secret.DB_URL=value --set secret.JWT=value
 
     secrets:
