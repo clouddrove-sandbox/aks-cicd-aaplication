@@ -1,12 +1,21 @@
 name: Deploy to DEV
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # <-- required trigger
 
 jobs:
   deploy:
-    uses: ./.github/workflows/template-cd-app.yaml
-    secrets: inherit
-    with:
-      environment: dev
-      tag: ${{ github.sha }}
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://portal.azure.com
+    env:
+      HELM_NAMESPACE: ${{ vars.HELM_NAMESPACE }}
+      HELM_VALUES_FILE: ${{ vars.HELM_VALUES_FILE }}
+
+    steps:
+      - name: Call Shared CD Workflow
+        uses: ./.github/workflows/template-cd-app.yaml
+        with:
+          tag: ${{ github.sha }}
+        # secrets: inherit
