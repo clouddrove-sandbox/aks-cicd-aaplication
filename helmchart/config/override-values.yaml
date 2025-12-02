@@ -10,8 +10,8 @@ secret:
   enabled: true
   secrets:
     # SECRET_KEY: "secret"
-    REFRESH_TOKEN_SECRET: ""
-    ACCESS_TOKEN_SECRET: ""
+    REFRESH_TOKEN: ""
+    ACCESS_TOKEN: ""
     DB_URL: ""
 
 configmap:
