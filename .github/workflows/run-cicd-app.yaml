@@ -30,5 +30,4 @@ jobs:
         --set secret.secrets.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
         --set secret.secrets.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
 
-    environment: ${{ github.ref_name }}
 
