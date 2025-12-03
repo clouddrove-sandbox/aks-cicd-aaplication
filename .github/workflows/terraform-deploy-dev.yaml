@@ -1,0 +1,44 @@
+name: "Terraform Deployment Dev"
+
+on:
+  pull_request:
+    paths:
+      - 'noe/dev/**/*.tf'
+      - '.github/workflows/terraform-deploy-dev.yaml' # to trigger when this file changes
+    branches: [ main ]
+
+  push:
+    paths:
+      - 'noe/dev/**/*.tf'
+      - '.github/workflows/terraform-deploy-dev.yaml'
+    branches: [ main ]  
+  workflow_dispatch:
+
+jobs:
+  tf-plan:
+    name: "Call Plan Dev"
+    if: ${{ github.event_name == 'pull_request' }}
+    uses:  ./.github/workflows/template-tf-plan.yaml #path of shared workflow
+    with:
+      working_directory: noe/dev/
+      terraform_version: "1.9.2"
+      plan_command: terraform plan -out=tfplan
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}
+
+  tf-apply:
+    name: "Call Apply Dev"
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    uses:  ./.github/workflows/template-tf-apply.yaml  #path of shared workflow
+    with:
+      working_directory: noe/dev/
+      approvers: "dverma-cd,rmalvia-cd"
+      minimum_approvals: 1
+      timeout: 5
+      plan_command: terraform plan  -out=tfplan
+      apply_command: terraform apply  -auto-approve tfplan
+      terraform_version: "1.9.2"
+    secrets:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }} 
+      MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}  

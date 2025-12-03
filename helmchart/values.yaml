@@ -25,7 +25,7 @@ commands: []
   # - echo "Hello, from CloudDrove!"
   
 secret:
-  enabled: true 
+  enabled: false 
     # -- secrets is a map that specifies the Secret resources that should be exposed to the main application container.           
   secrets: {}
     # KEY: "value"

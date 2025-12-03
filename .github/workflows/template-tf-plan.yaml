@@ -1,0 +1,77 @@
+name: "🌎 Terraform Plan (Reusable)"
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: "Root directory of the Terraform configuration"
+        required: true
+        type: string
+        default: ""
+      backend_config:
+        description: "Terraform backend config flags (space-separated)"
+        required: false
+        type: string
+        default: ""
+      terraform_version:
+        description: "Terraform version"
+        required: false
+        type: string
+        default: "1.13.3"
+      plan_command:
+        description: "Terraform plan command."
+        required: false
+        type: string
+        default: "terraform plan -out=tfplan"
+    secrets:
+      AZURE_CREDENTIALS:
+        description: "Azure Credentials to authenticate Azure CLI"
+        required: true
+      MODULE_GITHUB_TOKEN:
+        description: "PAT with repo read access for private Terraform modules"
+        required: true
+
+jobs:
+  plan:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📦 Checkout
+        uses: actions/checkout@v5
+
+      - name: ☁️ Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 🔧 Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: 🧹 Terraform Format Check
+        uses: dflook/terraform-fmt-check@v2
+        with:
+          actions_subcommand: fmt
+      
+      - name: 🔐 Configure git for private Terraform modules
+        run: |
+          git config --global url."https://x-access-token:${MODULE_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}
+
+      - name: 🏗️ Terraform Init
+        run: terraform init ${{ inputs.backend_config }}
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: 🔎 Terraform Validate
+        uses: dflook/terraform-validate@v2
+        with:
+          working-directory: ${{ inputs.working_directory }}
+
+      - name: 📋 Terraform Plan
+        run: ${{ inputs.plan_command }}
+        working-directory: ${{ inputs.working_directory }}
+
+
+      
