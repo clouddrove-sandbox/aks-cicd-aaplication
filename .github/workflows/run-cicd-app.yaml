@@ -23,10 +23,13 @@ jobs:
 
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # Optional – only set this when you actually need to override / inject secrets into Helm
       helm_set_args: |
         --set secret.DB_URL=${{ secrets.DB_URL }}
         --set secret.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
         --set secret.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
-      token_secret: ${{ secrets.GH_ARGO_CLIENT_SECRET }}
+      
+    env:
+      CLIENT_SECRET: ${{ secrets.GH_ARGO_CLIENT_SECRET }}
+      DB_URL: ${{ secrets.DB_URL }}
+      ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
