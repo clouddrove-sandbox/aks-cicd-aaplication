@@ -39,4 +39,5 @@ jobs:
       apply_command: terraform apply  -auto-approve tfplan
       terraform_version: "1.13.3"
     secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }} 
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}   
+      
