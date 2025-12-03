@@ -40,7 +40,9 @@ on:
       AZURE_CREDENTIALS:
         required: true
       helm_set_args:
-        required: false
+        required: true
+      token_env:
+        required: true
 
 jobs:
 
@@ -93,9 +95,59 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
+      # Expand TOKEN_ENV into real env vars for this job
+      - name: Export token env vars
+        run: |
+          echo "Expanding TOKEN_ENV into environment variables..."
+          cat << 'EOF' >> "$GITHUB_ENV"
+          ${{ secrets.token_env }}
+          EOF
+
+
+      # 🔥 NEW STEP: Replace tokens in values file before Helm deploy
+      - name: Replace tokens in Helm values file
+        uses: cschleiden/replace-tokens@v1
+        with:
+          files: '["${{ inputs.helm_values_file }}"]'
+          tokenPrefix: "#{"
+          tokenSuffix: "}#"
+          
+      - name: Run Script Debug
+        run: |
+          ls -la 
+
+      - name: Run Script Debug
+        run: |
+          set -euo pipefail
+          cat ./helmchart/config/override-values.yaml
+
+      - name: Debug values file path
+        run: |
+          echo "Helm values file: ${{ inputs.helm_values_file }}"
+          ls -lah .
+          ls -lah $(dirname "${{ inputs.helm_values_file }}") || true
+          cat "${{ inputs.helm_values_file }}" || echo "❌ File not found!"
+      
+      # - name: Build dynamic helm args from environment variables
+      #   id: buildargs
+      #   run: |
+      #     echo "Building dynamic Helm args..."
+      #     HELM_ARGS=""
+
+      #     for VAR in DB_URL ACCESS_TOKEN REFRESH_TOKEN; do
+      #       VALUE="${!VAR}"
+      #       if [[ -n "$VALUE" ]]; then
+      #         HELM_ARGS="$HELM_ARGS --set env.${VAR}=${VALUE}"
+      #       fi
+      #     done
+
+      #     echo "helm_args=$HELM_ARGS" >> $GITHUB_OUTPUT
+
+
+      
       - name: Deploy Helm Release
         env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
         run: |
           set -e
 
@@ -106,4 +158,4 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS}
+            ${HELM_SET_ARGS} 
