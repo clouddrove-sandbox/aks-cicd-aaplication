@@ -93,17 +93,22 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
-      - name: Install yq
-        run: sudo apt-get install -y yq
+      - name: Install yq (required for post-renderer)
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+
+      - name: Make renderer executable
+        run: chmod +x .github/scripts/inject-env.sh
+
 
       - name: Deploy Helm Release
         env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
         run: |
           set -e
 
           echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
-          chmod +x .github/scripts/inject-env.sh
 
           helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
             --namespace "${{ inputs.helm_namespace }}" --create-namespace \
