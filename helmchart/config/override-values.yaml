@@ -8,8 +8,7 @@ image:
 
 secret:
   enabled: true
-  secrets:
-    clientSecret: "__CLIENT_SECRET__"
+  CLIENT_SECRET: "__CLIENT_SECRET__"
 
 configmap:
   enabled: true
