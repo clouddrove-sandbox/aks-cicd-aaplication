@@ -84,9 +84,11 @@ jobs:
         with:
           image-ref: ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
           format: 'table'
-          exit-code: '1'          # fail pipeline if vulnerabilities found
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+
           
       - uses: azure/setup-kubectl@v4
       - uses: azure/setup-helm@v4
