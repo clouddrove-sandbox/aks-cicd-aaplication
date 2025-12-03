@@ -79,6 +79,15 @@ jobs:
             ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
             ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:latest
 
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
+          format: 'table'
+          exit-code: '1'          # fail pipeline if vulnerabilities found
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          
       - uses: azure/setup-kubectl@v4
       - uses: azure/setup-helm@v4
 
@@ -128,23 +137,6 @@ jobs:
           ls -lah .
           ls -lah $(dirname "${{ inputs.helm_values_file }}") || true
           cat "${{ inputs.helm_values_file }}" || echo "❌ File not found!"
-      
-      # - name: Build dynamic helm args from environment variables
-      #   id: buildargs
-      #   run: |
-      #     echo "Building dynamic Helm args..."
-      #     HELM_ARGS=""
-
-      #     for VAR in DB_URL ACCESS_TOKEN REFRESH_TOKEN; do
-      #       VALUE="${!VAR}"
-      #       if [[ -n "$VALUE" ]]; then
-      #         HELM_ARGS="$HELM_ARGS --set env.${VAR}=${VALUE}"
-      #       fi
-      #     done
-
-      #     echo "helm_args=$HELM_ARGS" >> $GITHUB_OUTPUT
-
-
       
       - name: Deploy Helm Release
         env:
