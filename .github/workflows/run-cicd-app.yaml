@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:   
+  deploy:
     uses: ./.github/workflows/template-cicd-app.yaml
 
     with:
@@ -26,8 +26,7 @@ jobs:
 
       # Optional – only set this when you actually need to override / inject secrets into Helm
       helm_set_args: |
-        --set secret.secrets.DB_URL=${{ secrets.DB_URL }}
-        --set secret.secrets.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
-        --set secret.secrets.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
-
-
+        --set secret.DB_URL=${{ secrets.DB_URL }}
+        --set secret.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
+        --set secret.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
+      token_secret: ${{ secrets.GH_ARGO_CLIENT_SECRET }}
