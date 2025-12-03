@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - 'noe/dev/**/*.tf'
-      - '.github/workflows/terraform-deploy-dev.yml' # to trigger when this file changes
+      - '.github/workflows/terraform-deploy-dev.yaml' # to trigger when this file changes
     branches: [ main ]
 
   push:
     paths:
       - 'noe/dev/**/*.tf'
-      - '.github/workflows/terraform-deploy-dev.yml'
+      - '.github/workflows/terraform-deploy-dev.yaml'
     branches: [ main ]  
   workflow_dispatch:
 
