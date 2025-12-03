@@ -24,7 +24,7 @@ jobs:
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       helm_set_args: ""
-      TOKEN_ENV: |
+      token_env: |
         DB_URL=${{ secrets.DB_URL }}
         ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
         REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}

@@ -41,7 +41,7 @@ on:
         required: true
       helm_set_args:
         required: true
-      TOKEN_ENV:
+      token_env:
         required: true
 
 jobs:
@@ -100,7 +100,7 @@ jobs:
         run: |
           echo "Expanding TOKEN_ENV into environment variables..."
           cat << 'EOF' >> "$GITHUB_ENV"
-          ${{ secrets.TOKEN_ENV }}
+          ${{ secrets.token_env }}
           EOF
 
 
@@ -112,20 +112,6 @@ jobs:
           tokenPrefix: "#{"
           tokenSuffix: "}#"
       
-      - name: Build Helm Args from TOKEN_ENV
-        id: tokenargs
-        run: |
-          echo "Building Helm args from TOKEN_ENV..."
-          args=""
-          while IFS='=' read -r key value; do
-            if [[ -n "$key" && -n "$value" ]]; then
-              args+=" --set secret.${key}=${value}"
-            fi
-          done <<< "${{ secrets.TOKEN_ENV }}"
-
-          echo "helm_args=$args" >> "$GITHUB_OUTPUT"
-
-
       - name: Deploy Helm Release
         env:
           HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
@@ -139,4 +125,5 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS}
+            ${HELM_SET_ARGS} \ 
+            ${TOKEN_ENV}
