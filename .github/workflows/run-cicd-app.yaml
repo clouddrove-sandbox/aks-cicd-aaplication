@@ -12,7 +12,7 @@ jobs:
     with:
       acr_login_server: hugintestacr.azurecr.io
       acr_repository: proj-hugin-backend
-      aks_rg: hugin-test-rg
+      aks_rg: hugin-test-rg 
       aks_cluster_name: hugin-test-aks
 
       helm_release_name: proj-hugin-api
