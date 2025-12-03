@@ -2,7 +2,7 @@ name: Run CI/CD Pipeline
 
 on:
   push:
-    branches: [dev, qa, prod]
+    branches: [dev, qa, main]
   workflow_dispatch:
 
 jobs:
@@ -10,14 +10,14 @@ jobs:
     uses: ./.github/workflows/template-cicd-app.yaml 
 
     with:
-      acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
-      acr_repository:   ${{ vars.ACR_REPOSITORY }}
-      aks_rg:           ${{ vars.AKS_RG }}
-      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
+      acr_login_server: hugintestacr.azurecr.io
+      acr_repository: proj-hugin-backend
+      aks_rg: hugin-test-rg
+      aks_cluster_name: hugin-test-aks
 
-      helm_release_name: ${{ vars.HELM_RELEASE_NAME }}
-      helm_chart_path:   ${{ vars.HELM_CHART_PATH }}
-      helm_namespace:    ${{ github.ref_name }}
+      helm_release_name: proj-hugin-api
+      helm_chart_path: ./helmchart
+      helm_namespace: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
       helm_values_file:  ./helmchart/config/override-values.yaml
 
 
