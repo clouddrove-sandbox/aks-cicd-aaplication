@@ -111,37 +111,41 @@ jobs:
           files: '["${{ inputs.helm_values_file }}"]'
           tokenPrefix: "#{"
           tokenSuffix: "}#"
-      
-      - name: Build dynamic helm args from environment variables
-        id: buildargs
+
+      - name: Run Script Debug
         run: |
-          echo "Building dynamic Helm args..."
-          HELM_ARGS=""
+          cat ${{ inputs.helm_values_file }}
+      
+      # - name: Build dynamic helm args from environment variables
+      #   id: buildargs
+      #   run: |
+      #     echo "Building dynamic Helm args..."
+      #     HELM_ARGS=""
 
-          for VAR in DB_URL ACCESS_TOKEN REFRESH_TOKEN; do
-            VALUE="${!VAR}"
-            if [[ -n "$VALUE" ]]; then
-              HELM_ARGS="$HELM_ARGS --set env.${VAR}=${VALUE}"
-            fi
-          done
+      #     for VAR in DB_URL ACCESS_TOKEN REFRESH_TOKEN; do
+      #       VALUE="${!VAR}"
+      #       if [[ -n "$VALUE" ]]; then
+      #         HELM_ARGS="$HELM_ARGS --set env.${VAR}=${VALUE}"
+      #       fi
+      #     done
 
-          echo "helm_args=$HELM_ARGS" >> $GITHUB_OUTPUT
+      #     echo "helm_args=$HELM_ARGS" >> $GITHUB_OUTPUT
 
 
       
-      - name: Deploy Helm Release
-        env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
-        run: |
-          set -e
+      # - name: Deploy Helm Release
+      #   env:
+      #     HELM_SET_ARGS: ${{ secrets.helm_set_args }}
+      #   run: |
+      #     set -e
 
-          echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
-          echo "Using Dynamic Secret Args: ${{ steps.buildargs.outputs.helm_args }}"
+      #     echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
+      #     echo "Using Dynamic Secret Args: ${{ steps.buildargs.outputs.helm_args }}"
 
-          helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
-            --namespace "${{ inputs.helm_namespace }}" --create-namespace \
-            -f "${{ inputs.helm_values_file }}" \
-            --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
-            --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS} \
-            ${{ steps.buildargs.outputs.helm_args }}
+      #     helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
+      #       --namespace "${{ inputs.helm_namespace }}" --create-namespace \
+      #       -f "${{ inputs.helm_values_file }}" \
+      #       --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
+      #       --set image.tag="${{ steps.meta.outputs.tag }}" \
+      #       ${HELM_SET_ARGS} \
+      #       ${{ steps.buildargs.outputs.helm_args }}
