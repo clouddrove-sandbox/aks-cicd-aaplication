@@ -37,7 +37,6 @@ jobs:
       timeout: 5
       plan_command: terraform plan  -out=tfplan
       apply_command: terraform apply  -auto-approve tfplan
-      terraform_version: "1.13.3"
+      terraform_version: "1.9.2"
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}   
-      
