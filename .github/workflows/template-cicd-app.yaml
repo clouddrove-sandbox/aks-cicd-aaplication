@@ -31,7 +31,7 @@ on:
       helm_namespace:
         required: true
         type: string
-        
+
       helm_values_file:
         required: true
         type: string
@@ -40,9 +40,7 @@ on:
       AZURE_CREDENTIALS:
         required: true
       helm_set_args:
-        required: true
-      token_secret:
-        required: true
+        required: false
 
 jobs:
 
@@ -94,16 +92,6 @@ jobs:
           cluster-name:   ${{ inputs.aks_cluster_name }}
 
       - run: kubelogin convert-kubeconfig -l azurecli
-
-      # 🔥 NEW STEP: Replace tokens in values file before Helm deploy
-      - name: Replace tokens in Helm values file
-        uses: cschleiden/replace-tokens@v1
-        with:
-          files: '["${{ inputs.helm_values_file }}"]'
-          tokenPrefix: "__"
-          tokenSuffix: "__"
-        env:
-          CLIENT_SECRET: ${{ secrets.token_secret }}
 
       - name: Deploy Helm Release
         env:

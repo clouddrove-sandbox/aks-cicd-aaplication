@@ -9,7 +9,10 @@ image:
 secret:
   enabled: true
   secrets:
-    clientSecret: "__CLIENT_SECRET__"
+    # SECRET_KEY: "secret"
+    REFRESH_TOKEN: ""
+    ACCESS_TOKEN: ""
+    DB_URL: ""
 
 configmap:
   enabled: true
