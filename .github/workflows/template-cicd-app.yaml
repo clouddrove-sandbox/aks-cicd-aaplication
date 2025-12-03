@@ -125,5 +125,5 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS} \ 
+            ${HELM_SET_ARGS} \
             ${TOKEN_ENV}
