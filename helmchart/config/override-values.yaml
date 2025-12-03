@@ -182,10 +182,3 @@ nodeSelector:
 
 deploymentStrategy:
   type: Recreate
-
-dex.config: |
-  connectors:
-    - type: github
-      config:
-        clientID: "Ov23liGSjttKFllo6dmN"x
-        clientSecret: #{CLIENT_SECRET}#
