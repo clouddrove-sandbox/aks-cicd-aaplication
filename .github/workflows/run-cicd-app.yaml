@@ -7,7 +7,8 @@ on:
 
 jobs:
   deploy:
-    environment: ${{ github.ref_name }}  
+    runs-on: ubuntu-latest
+    
     uses: ./.github/workflows/template-cicd-app.yaml
 
     with:
@@ -30,4 +31,6 @@ jobs:
         --set secret.secrets.DB_URL=${{ secrets.DB_URL }}
         --set secret.secrets.ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }}
         --set secret.secrets.REFRESH_TOKEN=${{ secrets.REFRESH_TOKEN }}
+
+    environment: ${{ github.ref_name }}
 
