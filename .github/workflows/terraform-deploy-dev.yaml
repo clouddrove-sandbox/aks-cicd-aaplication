@@ -25,6 +25,7 @@ jobs:
       plan_command: terraform plan -out=tfplan
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}
 
   tf-apply:
     name: "Call Apply Dev"
@@ -39,4 +40,5 @@ jobs:
       apply_command: terraform apply  -auto-approve tfplan
       terraform_version: "1.9.2"
     secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}   
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }} 
+      MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}  

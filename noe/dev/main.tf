@@ -1,13 +1,15 @@
 provider "azurerm" {
   features {}
+  subscription_id = "1ac2caa4-336e-4daa-b8f1-0fbabe2d4b11"
 }
 
 ##-----------------------------------------------------------------------------
 ## Resource Group module call.
 ##-----------------------------------------------------------------------------
 module "resource_group" {
-  source  = "terraform-az-modules/resource-group/azurerm"
-  version = "1.0.3"
+
+  source = "git::https://github.com/dverma-cd/rg.git"
+  # version = "1.0.3"
   name        = var.name
   environment = "test"
   location    = "northeurope"

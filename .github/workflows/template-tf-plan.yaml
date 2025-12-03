@@ -27,6 +27,9 @@ on:
       AZURE_CREDENTIALS:
         description: "Azure Credentials to authenticate Azure CLI"
         required: true
+      MODULE_GITHUB_TOKEN:
+        description: "PAT with repo read access for private Terraform modules"
+        required: true
 
 jobs:
   plan:
@@ -50,6 +53,12 @@ jobs:
         uses: dflook/terraform-fmt-check@v2
         with:
           actions_subcommand: fmt
+      
+      - name: 🔐 Configure git for private Terraform modules
+        run: |
+          git config --global url."https://x-access-token:${MODULE_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+        env:
+          MODULE_GITHUB_TOKEN: ${{ secrets.MODULE_GITHUB_TOKEN }}
 
       - name: 🏗️ Terraform Init
         run: terraform init ${{ inputs.backend_config }}
