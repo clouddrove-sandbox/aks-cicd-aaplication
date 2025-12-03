@@ -93,6 +93,9 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
+      - name: Install yq
+        run: sudo apt-get install -y yq
+
       - name: Deploy Helm Release
         env:
           HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
@@ -106,4 +109,5 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS}
+            ${HELM_SET_ARGS} \
+            --post-renderer .github/scripts/inject-env.sh
