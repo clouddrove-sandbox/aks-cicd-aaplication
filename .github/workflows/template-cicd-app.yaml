@@ -41,8 +41,6 @@ on:
         required: true
       helm_set_args:
         required: true
-      token_secret:
-        required: true
 
 jobs:
 
@@ -95,15 +93,18 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
+      - name: Export injected environment variables
+        run: |
+          env | grep -E '^[A-Z0-9_]+=.+$' >> $GITHUB_ENV
+
+
       # 🔥 NEW STEP: Replace tokens in values file before Helm deploy
       - name: Replace tokens in Helm values file
         uses: cschleiden/replace-tokens@v1
         with:
           files: '["${{ inputs.helm_values_file }}"]'
-          tokenPrefix: "__"
-          tokenSuffix: "__"
-        env:
-          CLIENT_SECRET: ${{ secrets.token_secret }}
+          tokenPrefix: "#{"
+          tokenSuffix: "}#"
 
 
       - name: Deploy Helm Release
