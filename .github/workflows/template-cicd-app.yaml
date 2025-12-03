@@ -53,49 +53,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # - name: Login to Azure
-      #   uses: azure/login@v2
-      #   with:
-      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # - name: Login to ACR
-      #   uses: azure/docker-login@v2
-      #   with:
-      #     login-server: ${{ inputs.acr_login_server }}
-      #     username:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
-      #     password:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+      - name: Login to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ inputs.acr_login_server }}
+          username:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          password:     ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
 
-      # - id: meta
-      #   name: Generate Image Tag
-      #   run: echo "tag=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - id: meta
+        name: Generate Image Tag
+        run: echo "tag=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
-      # - name: Build & Push Image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     push: true
-      #     tags: |
-      #       ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
-      #       ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:latest
+      - name: Build & Push Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
+            ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:latest
 
-      # - uses: azure/setup-kubectl@v4
-      # - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-helm@v4
 
-      # - name: Install kubelogin
-      #   run: |
-      #     curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
-      #     sudo apt-get install unzip -y
-      #     unzip kubelogin-linux-amd64.zip
-      #     sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+      - name: Install kubelogin
+        run: |
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt-get install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
 
-      # - uses: azure/aks-set-context@v4
-      #   with:
-      #     resource-group: ${{ inputs.aks_rg }}
-      #     cluster-name:   ${{ inputs.aks_cluster_name }}
+      - uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ inputs.aks_rg }}
+          cluster-name:   ${{ inputs.aks_cluster_name }}
 
-      # - run: kubelogin convert-kubeconfig -l azurecli
+      - run: kubelogin convert-kubeconfig -l azurecli
 
-      # 🔹 Expand TOKEN_ENV into real env vars for this job
+      # Expand TOKEN_ENV into real env vars for this job
       - name: Export token env vars
         run: |
           echo "Expanding TOKEN_ENV into environment variables..."
@@ -145,19 +145,17 @@ jobs:
 
 
       
-      # - name: Deploy Helm Release
-      #   env:
-      #     HELM_SET_ARGS: ${{ secrets.helm_set_args }}
-      #   run: |
-      #     set -e
+      - name: Deploy Helm Release
+        env:
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
+        run: |
+          set -e
 
-      #     echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
-      #     echo "Using Dynamic Secret Args: ${{ steps.buildargs.outputs.helm_args }}"
+          echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
 
-      #     helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
-      #       --namespace "${{ inputs.helm_namespace }}" --create-namespace \
-      #       -f "${{ inputs.helm_values_file }}" \
-      #       --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
-      #       --set image.tag="${{ steps.meta.outputs.tag }}" \
-      #       ${HELM_SET_ARGS} \
-      #       ${{ steps.buildargs.outputs.helm_args }}
+          helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
+            --namespace "${{ inputs.helm_namespace }}" --create-namespace \
+            -f "${{ inputs.helm_values_file }}" \
+            --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
+            --set image.tag="${{ steps.meta.outputs.tag }}" \
+            ${HELM_SET_ARGS} 
