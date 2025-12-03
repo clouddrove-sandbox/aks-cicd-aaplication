@@ -93,15 +93,6 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
-      - name: Install yq (required for post-renderer)
-        run: |
-          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
-          sudo chmod +x /usr/bin/yq
-
-      - name: Make renderer executable
-        run: chmod +x .github/scripts/inject-env.sh
-
-
       - name: Deploy Helm Release
         env:
           HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
@@ -115,4 +106,4 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS} \
+            ${HELM_SET_ARGS}
