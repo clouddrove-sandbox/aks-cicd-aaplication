@@ -111,6 +111,10 @@ jobs:
           files: '["${{ inputs.helm_values_file }}"]'
           tokenPrefix: "#{"
           tokenSuffix: "}#"
+          
+      - name: Run Script Debug
+        run: |
+          ls -la 
 
       - name: Run Script Debug
         run: |
