@@ -116,4 +116,3 @@ jobs:
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
             ${HELM_SET_ARGS} \
-            --post-renderer .github/scripts/inject-env.sh
