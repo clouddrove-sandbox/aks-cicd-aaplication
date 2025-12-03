@@ -48,7 +48,8 @@ jobs:
 
   build_deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}
+    environment:
+      name: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
