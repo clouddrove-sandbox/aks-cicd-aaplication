@@ -108,7 +108,7 @@ jobs:
       - name: Replace tokens in Helm values file
         uses: cschleiden/replace-tokens@v1
         with:
-          files: '["./helmchart/config/override-values.yaml"]'
+          files: '["${{ inputs.helm_values_file }}"]'
           tokenPrefix: "#{"
           tokenSuffix: "}#"
           
