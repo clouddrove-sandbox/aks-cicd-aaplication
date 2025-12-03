@@ -6,9 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
+  deploy:   
     uses: ./.github/workflows/template-cicd-app.yaml
 
     with:
