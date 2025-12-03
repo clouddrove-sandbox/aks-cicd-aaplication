@@ -117,20 +117,21 @@ jobs:
         run: |
           echo "Building dynamic Helm args..."
           HELM_ARGS=""
-          
-          for VAR in $(compgen -v); do
-            if [[ "$VAR" == "DB_URL" || "$VAR" == "ACCESS_TOKEN" || "$VAR" == "REFRESH_TOKEN" ]]; then
-              VALUE="${!VAR}"
-              HELM_ARGS="$HELM_ARGS --set secret.${VAR}=${VALUE}"
+
+          for VAR in DB_URL ACCESS_TOKEN REFRESH_TOKEN; do
+            VALUE="${!VAR}"
+            if [[ -n "$VALUE" ]]; then
+              HELM_ARGS="$HELM_ARGS --set env.${VAR}=${VALUE}"
             fi
           done
 
           echo "helm_args=$HELM_ARGS" >> $GITHUB_OUTPUT
 
+
       
       - name: Deploy Helm Release
         env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
         run: |
           set -e
 
@@ -138,9 +139,9 @@ jobs:
           echo "Using Dynamic Secret Args: ${{ steps.buildargs.outputs.helm_args }}"
 
           helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
-          --namespace "${{ inputs.helm_namespace }}" --create-namespace \
-          -f "${{ inputs.helm_values_file }}" \
-          --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
-          --set image.tag="${{ steps.meta.outputs.tag }}" \
-          ${HELM_SET_ARGS} \
-          ${{ steps.buildargs.outputs.helm_args }}
+            --namespace "${{ inputs.helm_namespace }}" --create-namespace \
+            -f "${{ inputs.helm_values_file }}" \
+            --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
+            --set image.tag="${{ steps.meta.outputs.tag }}" \
+            ${HELM_SET_ARGS} \
+            ${{ steps.buildargs.outputs.helm_args }}
