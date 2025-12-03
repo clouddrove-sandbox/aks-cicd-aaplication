@@ -119,7 +119,7 @@ jobs:
       - name: Run Script Debug
         run: |
           set -euo pipefail
-          cat "${{ inputs.helm_values_file }}"
+          cat ./helmchart/config/override-values.yaml
 
       - name: Debug values file path
         run: |
