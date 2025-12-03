@@ -114,7 +114,7 @@ jobs:
           EOF
 
 
-      # 🔥 NEW STEP: Replace tokens in values file before Helm deploy
+      # NEW STEP: Replace tokens in values file before Helm deploy
       - name: Replace tokens in Helm values file
         uses: cschleiden/replace-tokens@v1
         with:
