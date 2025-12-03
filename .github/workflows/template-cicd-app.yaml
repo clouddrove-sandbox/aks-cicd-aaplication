@@ -98,11 +98,12 @@ jobs:
 
       - name: Deploy Helm Release
         env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
         run: |
           set -e
 
           echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
+          chmod +x .github/scripts/inject-env.sh
 
           helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
             --namespace "${{ inputs.helm_namespace }}" --create-namespace \
@@ -110,4 +111,4 @@ jobs:
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
             ${HELM_SET_ARGS} \
-            --post-renderer-exec .github/scripts/inject-env.sh
+            --post-renderer .github/scripts/inject-env.sh
