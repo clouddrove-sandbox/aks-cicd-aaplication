@@ -115,7 +115,14 @@ jobs:
       - name: Run Script Debug
         run: |
           set -euo pipefail
-          cat ${{ inputs.helm_values_file }}
+          cat "${{ inputs.helm_values_file }}"
+
+      - name: Debug values file path
+        run: |
+          echo "Helm values file: ${{ inputs.helm_values_file }}"
+          ls -lah .
+          ls -lah $(dirname "${{ inputs.helm_values_file }}") || true
+          cat "${{ inputs.helm_values_file }}" || echo "❌ File not found!"
       
       # - name: Build dynamic helm args from environment variables
       #   id: buildargs
