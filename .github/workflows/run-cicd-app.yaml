@@ -10,7 +10,7 @@ jobs:
     uses: ./.github/workflows/template-cicd-app.yaml 
 
     with:
-      environment_name: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+      environment_name: dev
       acr_login_server: hugintestacr.azurecr.io
       acr_repository: proj-hugin-backend
       aks_rg: hugin-test-rg 
