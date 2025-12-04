@@ -10,6 +10,7 @@ jobs:
     uses: ./.github/workflows/template-cicd-app.yaml 
 
     with:
+      environment_name: dev
       acr_login_server: hugintestacr.azurecr.io
       acr_repository: proj-hugin-backend
       aks_rg: hugin-test-rg 
@@ -17,7 +18,7 @@ jobs:
 
       helm_release_name: proj-hugin-api
       helm_chart_path: ./helmchart
-      helm_namespace: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+      helm_namespace: dev-workload
       helm_values_file:  ./helmchart/config/override-values.yaml
 
 
