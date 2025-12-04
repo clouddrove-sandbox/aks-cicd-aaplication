@@ -3,6 +3,9 @@ name: Shared CI-CD Template
 on:
   workflow_call:
     inputs:
+      environment_name:
+        required: true
+        type: string
 
       acr_login_server:
         required: true
@@ -49,8 +52,8 @@ jobs:
   build_deploy:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
-
+      name: ${{ inputs.environment_name }}
+      
     steps:
       - uses: actions/checkout@v4
 
