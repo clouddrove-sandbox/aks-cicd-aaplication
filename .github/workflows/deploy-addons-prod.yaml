@@ -23,19 +23,23 @@ jobs:
   deploy-prod:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+
     environment:
       name: prod
 
     env:
-      AKS_CLUSTER_NAME: hugin-test-aks      # <--- change
-      AKS_RG: hugin-test-rg                   # <--- change
-      K8S_NAMESPACE: prod-monitoring          # <--- change
+      # AKS Cluster
+      AKS_CLUSTER_NAME: hugin-test-aks
+      AKS_RG: hugin-test-rg
+      K8S_NAMESPACE: prod-monitoring
 
-      SIGNOZ_CHART_PATH: ./helmchart-signoz/config/signoz-prod-values.yaml
-      POSTGRES_CHART_PATH: ./helmchart-postgres/config/postgres-prod-values.yaml
-      GRAFANA_CHART_PATH: ./helmchart-grafana/config/grafana-prod-values.yaml
+      # Chart Values Files
+      SIGNOZ_VALUES: ./helmchart-signoz/config/signoz-prod-values.yaml
+      POSTGRES_VALUES: ./helmchart-postgres/config/postgres-prod-values.yaml
+      GRAFANA_VALUES: ./helmchart-grafana/config/grafana-prod-values.yaml
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -62,15 +66,16 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
+      # 🔁 Replace tokens in Helm override values files
       - name: Replace tokens in Helm values files
         uses: cschleiden/replace-tokens@v1
         with:
           tokenPrefix: "#{"
           tokenSuffix: "}#"
           files: |
-            ${{ env.SIGNOZ_CHART_PATH }}
-            ${{ env.POSTGRES_CHART_PATH }}
-            ${{ env.GRAFANA_CHART_PATH }}
+            ${{ env.SIGNOZ_VALUES }}
+            ${{ env.POSTGRES_VALUES }}
+            ${{ env.GRAFANA_VALUES }}
         env: 
           GRAFANA_USER: ${{ secrets.GRAFANA_USER }}
           GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
@@ -84,32 +89,33 @@ jobs:
           SIGNOZ_PASSWORD: ${{ secrets.SIGNOZ_PASSWORD }}
           SIGNOZ_URL: ${{ secrets.SIGNOZ_URL }}
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-
+      # 🚀 Deploy selected Helm releases
       - name: Deploy SigNoz (Prod)
         if: ${{ inputs.deploy_signoz == true }}
         run: |
-          helm upgrade --install signoz "${{ env.SIGNOZ_CHART_PATH }}" \
+          helm upgrade --install signoz ./helmchart-signoz \
+            -f "${{ env.SIGNOZ_VALUES }}" \
             --namespace "${K8S_NAMESPACE}" \
             --create-namespace \
             --wait \
-            --atomic
+            --rollback-on-failure
 
       - name: Deploy Postgres (Prod)
         if: ${{ inputs.deploy_postgres == true }}
         run: |
-          helm upgrade --install postgres "${{ env.POSTGRES_CHART_PATH }}" \
+          helm upgrade --install postgres ./helmchart-postgres \
+            -f "${{ env.POSTGRES_VALUES }}" \
             --namespace "${K8S_NAMESPACE}" \
             --create-namespace \
             --wait \
-            --atomic
+            --rollback-on-failure
 
       - name: Deploy Grafana (Prod)
         if: ${{ inputs.deploy_grafana == true }}
         run: |
-          helm upgrade --install grafana "${{ env.GRAFANA_CHART_PATH }}" \
+          helm upgrade --install grafana ./helmchart-grafana \
+            -f "${{ env.GRAFANA_VALUES }}" \
             --namespace "${K8S_NAMESPACE}" \
             --create-namespace \
             --wait \
-            --atomic
+            --rollback-on-failure
