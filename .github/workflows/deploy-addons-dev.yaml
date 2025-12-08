@@ -1,0 +1,78 @@
+name: Deploy Addons to AKS - Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_signoz:
+        description: "Deploy / upgrade SigNoz chart?"
+        required: true
+        type: boolean
+        default: false
+      deploy_postgres:
+        description: "Deploy / upgrade Postgres chart?"
+        required: true
+        type: boolean
+        default: false
+      deploy_grafana:
+        description: "Deploy / upgrade Grafana chart?"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    env:
+      AKS_CLUSTER_NAME: hugin-test-aks      # <--- change
+      AKS_RG: hugin-test-rg                   # <--- change
+      K8S_NAMESPACE: prod-monitoring          # <--- change
+
+      SIGNOZ_CHART_PATH: ./helmchart-signoz/config/signoz-dev-values.yaml
+      POSTGRES_CHART_PATH: ./helmchart-postgres/config/postgres-dev-values.yaml
+      GRAFANA_CHART_PATH: ./helmchart-grafana/config/grafana-dev-values.yaml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.AKS_RG }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy SigNoz (dev)
+        if: ${{ inputs.deploy_signoz == true }}
+        run: |
+          helm upgrade --install signoz "${{ env.SIGNOZ_CHART_PATH }}" \
+            --namespace "${K8S_NAMESPACE}" \
+            --create-namespace \
+            --wait \
+            --atomic
+
+      - name: Deploy Postgres (dev)
+        if: ${{ inputs.deploy_postgres == true }}
+        run: |
+          helm upgrade --install postgres "${{ env.POSTGRES_CHART_PATH }}" \
+            --namespace "${K8S_NAMESPACE}" \
+            --create-namespace \
+            --wait \
+            --atomic
+
+      - name: Deploy Grafana (dev)
+        if: ${{ inputs.deploy_grafana == true }}
+        run: |
+          helm upgrade --install grafana "${{ env.GRAFANA_CHART_PATH }}" \
+            --namespace "${K8S_NAMESPACE}" \
+            --create-namespace \
+            --wait \
+            --atomic
