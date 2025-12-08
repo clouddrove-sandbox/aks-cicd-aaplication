@@ -66,7 +66,7 @@ jobs:
 
       - run: kubelogin convert-kubeconfig -l azurecli
 
-      # 🔁 Replace tokens in Helm override values files
+      # 🔁 Replace tokens for Signoz and Helm Deploy
       - name: Replace tokens in Helm values files
         if: ${{ inputs.deploy_signoz == true }}
         uses: cschleiden/replace-tokens@v1
@@ -75,13 +75,10 @@ jobs:
           tokenSuffix: "}#"
           files: |
             ${{ env.SIGNOZ_VALUES }}
-
         env: 
           SIGNOZ_USER: ${{ secrets.SIGNOZ_USER }}
           SIGNOZ_PASSWORD: ${{ secrets.SIGNOZ_PASSWORD }}
           SIGNOZ_URL: ${{ secrets.SIGNOZ_URL }}
-
-      # 🚀 Deploy selected Helm releases
 
       - name: Deploy SigNoz (Prod)
         if: ${{ inputs.deploy_signoz == true }}
@@ -92,6 +89,20 @@ jobs:
             --create-namespace \
             --wait \
             --rollback-on-failure
+      
+      # 🔁 Replace tokens for Postgres and Helm Deploy
+      - name: Replace tokens in Helm values files
+        if: ${{ inputs.deploy_postgres == true }}
+        uses: cschleiden/replace-tokens@v1
+        with:
+          tokenPrefix: "#{"
+          tokenSuffix: "}#"
+          files: |
+            ${{ env.SIGNOZ_VALUES }}
+        env: 
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
 
       - name: Deploy Postgres (Prod)
         if: ${{ inputs.deploy_postgres == true }}
@@ -102,6 +113,20 @@ jobs:
             --create-namespace \
             --wait \
             --rollback-on-failure
+
+      # 🔁 Replace tokens for Grafana and Helm Deploy
+      - name: Replace tokens in Helm values files
+        if: ${{ inputs.deploy_grafana == true }}
+        uses: cschleiden/replace-tokens@v1
+        with:
+          tokenPrefix: "#{"
+          tokenSuffix: "}#"
+          files: |
+            ${{ env.GRAFANA_VALUES }}
+        env: 
+          GRAFANA_USER: ${{ secrets.GRAFANA_USER }}
+          GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
 
       - name: Deploy Grafana (Prod)
         if: ${{ inputs.deploy_grafana == true }}
