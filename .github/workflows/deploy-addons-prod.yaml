@@ -21,7 +21,7 @@ on:
 
 jobs:
   deploy-prod:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment:
       name: prod
@@ -44,11 +44,45 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Install kubelogin
+        run: |
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt-get install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+
       - name: Set AKS context
         uses: azure/aks-set-context@v4
         with:
           resource-group: ${{ env.AKS_RG }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - run: kubelogin convert-kubeconfig -l azurecli
+
+      - name: Replace tokens in Helm values files
+        uses: cschleiden/replace-tokens@v1
+        with:
+          tokenPrefix: "#{"
+          tokenSuffix: "}#"
+          files: |
+            ${{ env.SIGNOZ_CHART_PATH }}
+            ${{ env.POSTGRES_CHART_PATH }}
+            ${{ env.GRAFANA_CHART_PATH }}
+        env: 
+          GRAFANA_USER: ${{ secrets.GRAFANA_USER }}
+          GRAFANA_PASSWORD: ${{ secrets.GRAFANA_PASSWORD }}
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+
+          SIGNOZ_USER: ${{ secrets.SIGNOZ_USER }}
+          SIGNOZ_PASSWORD: ${{ secrets.SIGNOZ_PASSWORD }}
+          SIGNOZ_URL: ${{ secrets.SIGNOZ_URL }}
 
       - name: Install Helm
         uses: azure/setup-helm@v4

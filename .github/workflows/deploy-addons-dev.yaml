@@ -22,7 +22,8 @@ on:
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
-
+    environment:
+      name: dev
     env:
       AKS_CLUSTER_NAME: hugin-test-aks      # <--- change
       AKS_RG: hugin-test-rg                   # <--- change
@@ -41,11 +42,23 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Install kubelogin
+        run: |
+          curl -LO https://github.com/Azure/kubelogin/releases/latest/download/kubelogin-linux-amd64.zip
+          sudo apt-get install unzip -y
+          unzip kubelogin-linux-amd64.zip
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+
       - name: Set AKS context
         uses: azure/aks-set-context@v4
         with:
           resource-group: ${{ env.AKS_RG }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+      - run: kubelogin convert-kubeconfig -l azurecli
 
       - name: Install Helm
         uses: azure/setup-helm@v4
