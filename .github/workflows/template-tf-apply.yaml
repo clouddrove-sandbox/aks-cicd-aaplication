@@ -3,6 +3,9 @@ name: "🚀 Terraform Apply (Reusable)"
 on:
   workflow_call:
     inputs:
+      environment:
+        required: true
+        type: string
       working_directory:
         description: "Root directory of the Terraform configuration"
         required: true
@@ -13,21 +16,6 @@ on:
         required: false
         type: string
         default: ""
-      timeout:
-        description: "Timeout (minutes) for manual approval"
-        required: false
-        type: number
-        default: 10
-      approvers:
-        description: "Comma-separated GitHub usernames allowed to approve"
-        required: false
-        type: string
-        default: ""
-      minimum_approvals:
-        description: "Minimum approvals required"
-        required: false
-        type: number
-        default: 1
       plan_command:
         description: "Terraform plan command."
         required: false
@@ -51,13 +39,64 @@ on:
         description: "PAT with repo read access for private Terraform modules"
         required: true
 
+
 jobs:
   apply:
     name: "Terraform Apply"
-    runs-on: ubuntu-latest
+    runs-on: arc-aks-runners
+    
+    environment: ${{ inputs.environment }}
+
+    env:
+      ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+      ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+      ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+
     steps:
       - name: 📦 Checkout
         uses: actions/checkout@v5
+
+      # 👇 IMPORTANT: make sure Node.js + base tools + Azure CLI exist (for self-hosted)
+      - name: 🔧 Ensure Node.js & CLI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+
+          # ----- Node.js (required for JavaScript actions) -----
+          if ! command -v node >/dev/null 2>&1; then
+            echo "Node.js not found, installing Node 20..."
+            if command -v apt-get >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get update -y
+              sudo apt-get install -y nodejs
+            else
+              echo "apt-get not available; install Node.js manually on this runner."
+              exit 1
+            fi
+          else
+            echo "Node.js present: $(node -v)"
+          fi
+
+          # ----- Base packages (useful for Az + general) -----
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y \
+              curl \
+              unzip \
+              git \
+              ca-certificates \
+              gnupg \
+              lsb-release
+          fi
+
+          # ----- Azure CLI (for azure/login when using auth-type=azurecli/kubelogin later) -----
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found, installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed: $(az version | head -n 1 || true)"
+          fi
 
       - name: ☁️ Azure Login
         uses: azure/login@v2
@@ -87,15 +126,6 @@ jobs:
       - name: 📋 Terraform Plan
         run: ${{ inputs.plan_command }}
         working-directory: ${{ inputs.working_directory }}          
-
-      - name: ✅ Manual Approval
-        uses: trstringer/manual-approval@v1
-        timeout-minutes: ${{ inputs.timeout }}
-        with:
-          secret: ${{ github.token }}
-          approvers: ${{ inputs.approvers }}
-          minimum-approvals: ${{ inputs.minimum_approvals }}
-          issue-title: "Approve Terraform Apply for ${{ github.ref_name }}"
 
       - name: 🚀 Terraform Apply
         run: ${{ inputs.apply_command }}
