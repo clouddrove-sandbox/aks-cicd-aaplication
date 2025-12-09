@@ -3,6 +3,10 @@ name: "🌎 Terraform Plan (Reusable)"
 on:
   workflow_call:
     inputs:
+      runs-on:
+        description: "for runners"
+        required: true
+        type: string
       working_directory:
         description: "Root directory of the Terraform configuration"
         required: true
@@ -34,7 +38,7 @@ on:
 jobs:
   plan:
     name: "Terraform Plan"
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     steps:
       - name: 📦 Checkout
         uses: actions/checkout@v5
