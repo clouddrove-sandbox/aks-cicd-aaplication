@@ -34,10 +34,58 @@ on:
 jobs:
   plan:
     name: "Terraform Plan"
-    runs-on: ubuntu-latest
+    runs-on: arc-aks-runners
+
+    env:
+      ARM_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+      ARM_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+      ARM_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+      ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+
     steps:
       - name: 📦 Checkout
         uses: actions/checkout@v5
+
+      # 👇 IMPORTANT: make sure Node.js + base tools + Azure CLI exist (for self-hosted)
+      - name: 🔧 Ensure Node.js & CLI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+
+          # ----- Node.js (required for JavaScript actions) -----
+          if ! command -v node >/dev/null 2>&1; then
+            echo "Node.js not found, installing Node 20..."
+            if command -v apt-get >/dev/null 2>&1; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get update -y
+              sudo apt-get install -y nodejs
+            else
+              echo "apt-get not available; install Node.js manually on this runner."
+              exit 1
+            fi
+          else
+            echo "Node.js present: $(node -v)"
+          fi
+
+          # ----- Base packages (useful for Az + general) -----
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y \
+              curl \
+              unzip \
+              git \
+              ca-certificates \
+              gnupg \
+              lsb-release
+          fi
+
+          # ----- Azure CLI (for azure/login when using auth-type=azurecli/kubelogin later) -----
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found, installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed: $(az version | head -n 1 || true)"
+          fi
 
       - name: ☁️ Azure Login
         uses: azure/login@v2
@@ -73,5 +121,3 @@ jobs:
         run: ${{ inputs.plan_command }}
         working-directory: ${{ inputs.working_directory }}
 
-
-      
