@@ -43,19 +43,45 @@ on:
       AZURE_CREDENTIALS:
         required: true
       helm_set_args:
-        required: true
+        required: false
       token_env:
         required: true
 
 jobs:
 
   build_deploy:
-    runs-on: ubuntu-latest
+    runs-on: arc-aks-runners
     environment:
       name: ${{ inputs.environment_name }}
-      
+
     steps:
       - uses: actions/checkout@v4
+
+      # NEW: make sure base tools + Azure CLI exist
+      - name: Ensure CLI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+
+          echo "Updating apt cache..."
+          sudo apt-get update -y
+
+          echo "Installing base utilities..."
+          sudo apt-get install -y \
+            curl \
+            unzip \
+            ca-certificates \
+            gnupg \
+            lsb-release \
+            git
+
+          echo "Checking for Azure CLI..."
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found, installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed, skipping."
+          fi
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -92,7 +118,6 @@ jobs:
           vuln-type: 'os,library'
           severity: 'HIGH,CRITICAL'
 
-          
       - uses: azure/setup-kubectl@v4
       - uses: azure/setup-helm@v4
 
@@ -118,34 +143,17 @@ jobs:
           ${{ secrets.token_env }}
           EOF
 
-
-      # NEW STEP: Replace tokens in values file before Helm deploy
+      # Replace tokens in values file before Helm deploy
       - name: Replace tokens in Helm values file
         uses: cschleiden/replace-tokens@v1
         with:
           files: '["${{ inputs.helm_values_file }}"]'
           tokenPrefix: "#{"
           tokenSuffix: "}#"
-          
-      - name: Run Script Debug
-        run: |
-          ls -la 
 
-      - name: Run Script Debug
-        run: |
-          set -euo pipefail
-          cat ./helmchart/config/override-values.yaml
-
-      - name: Debug values file path
-        run: |
-          echo "Helm values file: ${{ inputs.helm_values_file }}"
-          ls -lah .
-          ls -lah $(dirname "${{ inputs.helm_values_file }}") || true
-          cat "${{ inputs.helm_values_file }}" || echo "❌ File not found!"
-      
       - name: Deploy Helm Release
         env:
-          HELM_SET_ARGS: ${{ secrets.helm_set_args }}
+          HELM_SET_ARGS: ${{ secrets.helm_set_args }}   # may be empty
         run: |
           set -e
 
@@ -156,4 +164,4 @@ jobs:
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS} 
+            ${HELM_SET_ARGS}
