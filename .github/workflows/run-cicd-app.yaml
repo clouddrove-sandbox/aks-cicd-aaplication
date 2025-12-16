@@ -16,10 +16,11 @@ jobs:
       aks_rg: hugin-test-rg 
       aks_cluster_name: hugin-test-aks
 
-      helm_release_name: proj-hugin-api
-      helm_chart_path: ./helmchart
-      helm_namespace: prod-workload
-      helm_values_file:  ./helmchart/config/override-values.yaml
+      helm_repo_name: clouddrove
+      helm_repo_url: https://charts.clouddrove.com/ 
+      helm_chart_name: helmchart
+      helm_namespace: myapp
+      helm_values_file: values.yaml
 
 
     secrets:
