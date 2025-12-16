@@ -7,6 +7,22 @@ on:
         required: true
         type: string
 
+      runs-on:
+        description: "Runner label(s) for the job"
+        required: false
+        type: string
+        default: "arc-aks-runners"
+
+      docker_context:
+        required: false
+        type: string
+        default: .
+
+      dockerfile_path:
+        required: false
+        type: string
+        default: Dockerfile
+
       acr_login_server:
         required: true
         type: string
@@ -39,23 +55,69 @@ on:
         required: true
         type: string
 
+      helm_repo_name:
+        required: true
+        type: string
+
+      helm_repo_url:
+        required: true
+        type: string
+
+      helm_chart_name:
+        required: true
+        type: string
+
+      helm_chart_version:
+        required: false
+        type: string
+
+      helm_chart_download_dir:
+        required: false
+        type: string
+        default: helm-chart
+
     secrets:
       AZURE_CREDENTIALS:
         required: true
       helm_set_args:
-        required: true
+        required: false
       token_env:
         required: true
 
 jobs:
 
   build_deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment_name }}
-      
+    runs-on: ${{ inputs.runs-on }}
+    environment: ${{ inputs.environment_name }}
+
     steps:
       - uses: actions/checkout@v4
+
+      # NEW: make sure base tools + Azure CLI exist
+      - name: Ensure CLI dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+
+          echo "Updating apt cache..."
+          sudo apt-get update -y
+
+          echo "Installing base utilities..."
+          sudo apt-get install -y \
+            curl \
+            unzip \
+            ca-certificates \
+            gnupg \
+            lsb-release \
+            git
+
+          echo "Checking for Azure CLI..."
+          if ! command -v az >/dev/null 2>&1; then
+            echo "Azure CLI not found, installing..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          else
+            echo "Azure CLI already installed, skipping."
+          fi
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -76,7 +138,8 @@ jobs:
       - name: Build & Push Image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ inputs.docker_context }}
+          file: ${{ inputs.dockerfile_path }}
           push: true
           tags: |
             ${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}:${{ steps.meta.outputs.tag }}
@@ -92,9 +155,32 @@ jobs:
           vuln-type: 'os,library'
           severity: 'HIGH,CRITICAL'
 
-          
       - uses: azure/setup-kubectl@v4
       - uses: azure/setup-helm@v4
+        
+      - name: Add centralized Helm repo
+        run: |
+          helm repo add "${{ inputs.helm_repo_name }}" "${{ inputs.helm_repo_url }}"
+          helm repo update
+
+      - name: Download Helm chart from centralized repo
+        run: |
+          set -e
+
+          mkdir -p "${{ inputs.helm_chart_download_dir }}"
+
+          if [ -n "${{ inputs.helm_chart_version }}" ]; then
+            helm pull \
+              "${{ inputs.helm_repo_name }}/${{ inputs.helm_chart_name }}" \
+              --version "${{ inputs.helm_chart_version }}" \
+              --untar \
+              --untardir "${{ inputs.helm_chart_download_dir }}"
+          else
+            helm pull \
+              "${{ inputs.helm_repo_name }}/${{ inputs.helm_chart_name }}" \
+              --untar \
+              --untardir "${{ inputs.helm_chart_download_dir }}"
+          fi
 
       - name: Install kubelogin
         run: |
@@ -118,42 +204,29 @@ jobs:
           ${{ secrets.token_env }}
           EOF
 
-
-      # NEW STEP: Replace tokens in values file before Helm deploy
+      # Replace tokens in values file before Helm deploy
       - name: Replace tokens in Helm values file
         uses: cschleiden/replace-tokens@v1
         with:
           files: '["${{ inputs.helm_values_file }}"]'
           tokenPrefix: "#{"
           tokenSuffix: "}#"
-          
-      - name: Run Script Debug
-        run: |
-          ls -la 
 
-      - name: Run Script Debug
-        run: |
-          set -euo pipefail
-          cat ./helmchart/config/override-values.yaml
-
-      - name: Debug values file path
-        run: |
-          echo "Helm values file: ${{ inputs.helm_values_file }}"
-          ls -lah .
-          ls -lah $(dirname "${{ inputs.helm_values_file }}") || true
-          cat "${{ inputs.helm_values_file }}" || echo "❌ File not found!"
-      
       - name: Deploy Helm Release
         env:
           HELM_SET_ARGS: ${{ secrets.helm_set_args }}
         run: |
           set -e
 
+          CHART_PATH="${{ inputs.helm_chart_download_dir }}/${{ inputs.helm_chart_name }}"
+
+          echo "Deploying chart from: $CHART_PATH"
           echo "Using HELM_SET_ARGS: ${HELM_SET_ARGS:+(provided)}"
 
-          helm upgrade --install "${{ inputs.helm_release_name }}" "${{ inputs.helm_chart_path }}" \
-            --namespace "${{ inputs.helm_namespace }}" --create-namespace \
+          helm upgrade --install "${{ inputs.helm_release_name }}" "$CHART_PATH" \
+            --namespace "${{ inputs.helm_namespace }}" \
+            --create-namespace \
             -f "${{ inputs.helm_values_file }}" \
             --set image.repository="${{ inputs.acr_login_server }}/${{ inputs.acr_repository }}" \
             --set image.tag="${{ steps.meta.outputs.tag }}" \
-            ${HELM_SET_ARGS} 
+            ${HELM_SET_ARGS}
