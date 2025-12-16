@@ -10,6 +10,7 @@ jobs:
     uses: ./.github/workflows/template-cicd-app.yaml 
 
     with:
+      runs-on: ubuntu-latest
       environment_name: prod
       acr_login_server: hugintestacr.azurecr.io
       acr_repository: proj-hugin-backend
