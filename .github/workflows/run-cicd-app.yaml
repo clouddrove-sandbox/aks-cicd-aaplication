@@ -21,6 +21,7 @@ jobs:
       helm_chart_name: helmchart
       helm_namespace: myapp
       helm_values_file: values.yaml
+      helm_release_name: hugin-backend
 
 
     secrets:
