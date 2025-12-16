@@ -43,10 +43,6 @@ on:
         required: true
         type: string
 
-      helm_chart_path:
-        required: true
-        type: string
-
       helm_namespace:
         required: true
         type: string
